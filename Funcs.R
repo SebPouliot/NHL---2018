@@ -336,7 +336,7 @@ sim_season <- function(data){
 
 rank_func <- function(data, team.sim){
   
-  #Prepare data
+ #Prepare data
   
   dta.sim <- data %>%
     mutate(home = ifelse(home == "NA" & team == "home", paste("o", team.sim, sep = "."), as.character(home)),
