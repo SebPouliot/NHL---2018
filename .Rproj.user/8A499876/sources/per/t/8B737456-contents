@@ -1,0 +1,70 @@
+######################################################
+######## Calculate expected number of points #########
+######################################################
+    
+points <- data.frame(array(NA, c(30,1)))
+colnames(points) <- c("Original")
+rownames(points)   <- unique(dta$home)
+  
+for (l in unique(dta$visitor)){
+    
+  #####**** Team at home ****#####
+  
+  #Create data frame
+  dta_h <- data.frame(array(NA,c(30,1)))
+  colnames(dta_h) <- c("visitor")
+  dta_h$visitor <- unique(dta$visitor)
+  dta_h$home <- unique(dta$home)
+    
+  #Create dummy for teams at gome
+  for(t in unique(dta_h$home)) {
+    dta_h[,paste("h",t, sep=".")] <- 0
+  }
+  rm(t)
+  dta_h[,paste("h", l, sep=".")] <- 1
+  
+  #Create dummy for each team as visitor
+  for(t in unique(dta_h$visitor)) {
+    dta_h[,paste("v",t, sep=".")] <- ifelse(dta_h$visitor==t,1,0)
+  }
+  rm(t)
+  dta_h[,paste("v",l, sep=".")] <- 0
+    
+  dta_h$prob_w <- predict(reg_w, newdata=dta_h, type=c("response"))
+      
+  #Generate points
+  Ewin_h <- mean(dta_h$prob_w)
+    
+  #####**** Team as visitor ****#####
+    
+  #Create data frame
+  dta_v <- data.frame(array(NA,c(30,1)))
+  colnames(dta_v) <- c("visitor")
+  dta_v$visitor <- unique(dta$visitor)
+  dta_v$home <- unique(dta$home)
+    
+  #Create dummy for teams at gome
+  for(t in unique(dta_v$home)) {
+    dta_v[,paste("h",t, sep=".")] <- ifelse(dta_v$home==t,1,0)
+  }
+  rm(t)
+  dta_v[,paste("h", l, sep=".")] <- 0
+    
+  #Create dummy for each team as visitor
+  for(t in unique(dta_v$visitor)) {
+    dta_v[,paste("v",t, sep=".")] <- 0
+  }
+  rm(t)
+  dta_v[,paste("v",l, sep=".")] <- 1
+  
+  dta_v$prob_w <- 1-predict(reg_w, newdata=dta_v, type=c("response"))
+      
+  #Generate points
+  Ewin_v <- mean(dta_v$prob_w)
+    
+  points$Original[rownames(points)==l] <- 41*Ewin_h + 41*Ewin_v
+  rm(dta_v, dta_h, Ewin_v, Ewin_h)
+}
+  
+
+

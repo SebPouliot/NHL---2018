@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1545592767368.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "65|6|126|0|\n133|6|156|0|\n162|6|211|0|\n247|6|286|0|\n",
+    "hash" : "1391239359",
+    "id" : "FD3DF9E8",
+    "lastKnownWriteTime" : 1552229609,
+    "last_content_update" : 1552229609729,
+    "path" : "C:/Users/pouliot.IASTATE/Dropbox/Sports rankings/NHL - 2018/Hockey rankings.Rmd",
+    "project_path" : "Hockey rankings.Rmd",
+    "properties" : {
+        "cursorPosition" : "294,12",
+        "scrollLine" : "240"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

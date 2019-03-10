@@ -1,0 +1,152 @@
+---
+title: "Maple syrup storage"
+author: "Sébastien Pouliot"
+date: \today
+output:
+  pdf_document:
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+  html_document: default
+  word_document: default
+fontsize: 12pt
+geometry: margin=1in
+documentclass: article
+bibliography: References.bib
+urlcolor: blue
+---
+
+```{r "setup", include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'h')
+
+library(tidyverse)
+library(stringr)
+library(boot)
+library(matrixStats)
+library(snow)
+library(Rlab)
+library(gtable)
+library(ggplot2)
+library(gridExtra)
+library(lubridate)
+library(XML)
+library(rvest)
+library(MASS)
+
+
+set.seed(123457)
+
+#Number of loops and number of cores
+n.rep <- 1000 #for simulating season
+n.boot <- 2000 #for bootstrap on ranking
+n.core <- 6
+```
+
+
+
+```{r, include = TRUE, echo = FALSE, results='asis', message = FALSE, warning = FALSE}
+
+####################################
+######### Read the data ############
+####################################
+
+source("Data.R")
+
+#################################
+### Goals scored by home team ###
+#################################
+
+eq.reg_h <- glm.nb(r_hg ~ ., data = dta %>% dplyr::select(r_hg, v.Blues:h.Flyers), weights = dta$weight)
+#summary(eq.reg_h)
+
+#####################################
+### Goals scored by visiting team ###
+#####################################
+
+eq.reg_v <- glm.nb(r_vg ~ ., data = dta %>% dplyr::select(r_vg, v.Blues:h.Flyers), weights = dta$weight)
+#summary(eq.reg_v)
+
+##############################################
+######## The game goes into overtime #########
+##############################################
+
+reg_ot <- glm(OT_home_win ~ ., data = dta %>% dplyr::filter(OT==1) %>% dplyr::select(OT_home_win, v.Blues:h.Flyers), family=binomial(link=logit), weights = dta$weight)
+#summary(reg_ot)
+
+###########################################
+### Calculate points accumulated so far ###
+###########################################
+
+dta_p <- dta %>% mutate(point_h = case_when(hg > vg ~ 2,
+                                   hg < vg & ot_vg ==1 ~ 1,
+                                   hg < vg & ot_vg !=1 ~ 0),
+               point_v = case_when(vg > hg ~ 2,
+                                   vg < hg & ot_hg ==1 ~ 1,
+                                   vg < hg & ot_hg !=1 ~ 0)) %>%
+  dplyr::select(visitor, home, point_h, point_v) 
+
+dta_v <- dta_p %>%
+  dplyr::select(visitor, point_v) %>%
+  rename(team = visitor, points = point_v)
+
+dta_h <- dta_p %>%
+  dplyr::select(home, point_h) %>%
+  rename(team = home, points = point_h)
+
+dta_p <- rbind(dta_v, dta_h) %>%
+  group_by(team) %>%
+  summarize(points = sum(points))
+
+rm(dta_h, dta_v)
+
+```
+
+
+
+
+```{r, include = TRUE, echo = FALSE, results='asis', message = FALSE, warning = FALSE}
+
+###############################
+### Simulate rest of season ###
+###############################
+
+#Home goals
+dta0$hg <- predict(eq.reg_h, newdata = dta0, type = "response") %>% rnegbin(theta = eq.reg_h$theta)
+#Visitor goals
+dta0$vg <- predict(eq.reg_v, newdata = dta0, type = "response") %>% rnegbin(theta = eq.reg_v$theta)
+#Overtime outcome
+dta0$OT_home_win[dta0$vg == dta0$hg] <- predict(reg_ot, newdata = dta0[dta0$vg == dta0$hg,], type = "response") %>% round()
+
+###########################################
+### Calculate points accumulated so far ###
+###########################################
+
+dta0_p <- dta0 %>% mutate(point_h = case_when(hg > vg ~ 2,
+                                   hg < vg & ot_vg ==1 ~ 1,
+                                   hg < vg & ot_vg !=1 ~ 0),
+               point_v = case_when(vg > hg ~ 2,
+                                   vg < hg & ot_hg ==1 ~ 1,
+                                   vg < hg & ot_hg !=1 ~ 0)) %>%
+  dplyr::select(visitor, home, point_h, point_v) 
+
+dta0_v <- dta0_p %>%
+  dplyr::select(visitor, point_v) %>%
+  rename(team = visitor, points = point_v)
+
+dta0_h <- dta0_p %>%
+  dplyr::select(home, point_h) %>%
+  rename(team = home, points = point_h)
+
+dta0_p <- rbind(dta0_v, dta0_h) %>%
+  group_by(team) %>%
+  summarize(points = sum(points))
+
+
+
+
+
+
+```
+
+
+

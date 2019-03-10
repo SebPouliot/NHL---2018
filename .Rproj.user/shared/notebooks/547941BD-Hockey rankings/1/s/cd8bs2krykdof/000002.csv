@@ -1,0 +1,17 @@
+"0","dta_ranks <- teams %>%
+  map(function(x) rank_func(dta.sim, x)) %>%
+  bind_row() %>%
+  arrange(-points) %>%
+    mutate(rank = 1:length(teams),
+           diff = round(Team_goals - Opp_goals, 2),
+           Ratio = round(Team_goals/Opp_goals, 2)) %>%
+    dplyr::select(rank, team, points, Team_goals, Opp_goals, diff, Ratio) %>%
+  rename(Rank = rank,
+         Team = team,
+         `Exp PTS` = points,
+         `Exp GF` = Team_goals,
+         `Exp GA` = Opp_goals,
+         DIFF = diff)
+"
+"2","Error in bind_row(.) : could not find function ""bind_row""
+"

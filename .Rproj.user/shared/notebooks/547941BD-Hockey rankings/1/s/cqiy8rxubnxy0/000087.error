@@ -1,0 +1,1 @@
+{"frames":[{"character_number":0,"end_character_number":0,"end_line_number":0,"file":"","func":"ggplot(dta_ranks2, aes(reorder(var, var_rank), reorder(Team, \n    desc(Rank))))","line_number":0}],"message":"Error in ggplot(dta_ranks2, aes(reorder(var, var_rank), reorder(Team,  : \n  object 'dta_ranks2' not found\n"}

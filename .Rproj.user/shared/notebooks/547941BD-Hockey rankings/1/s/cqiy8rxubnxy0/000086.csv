@@ -1,0 +1,14 @@
+"0","pred_plot <- ggplot(dta_ranks2, aes(reorder(var, var_rank), reorder(Team,desc(Rank)))) + 
+  geom_tile(color=""white"", alpha = 0, size=2, stat=""identity"", height=2, width=2.5) + 
+  geom_text(data=dta_ranks2, aes(var, Team, label = value), size=rel(3)) +
+  scale_x_discrete(position=""top"") + scale_y_discrete(expand = c(0, 0)) +
+  mytheme +
+    labs(title = 'Power ranking for the NHL 2018-19 season',
+         subtitle = paste(""Calculated on "", paste(lubridate::month(today(), label = TRUE, abbr = FALSE), day(today()), sep = "" ""), "", "", year(today()), "" by Sébastien Pouliot - Twitter: @PouliotSeb"", sep = "" ""),
+         x = 'This axis title intentionally left blank',
+         y = 'This axis title intentionally left blank',
+         caption = wrapper(""Note: Exp points is a team expected number of points in a simulated season where it plays every teams, including itself, at home and aways, thus ranking teams assuming they all play the same 82 games season. The other columns are the expected number of goals for (Exp GF), the expected number of goals against (Exp GA), the difference in expected goals (Diff), and the ratio of the expected goals (Ratio)."", width = 140))
+"
+"2","Error in ggplot(dta_ranks2, aes(reorder(var, var_rank), reorder(Team,  : 
+  object 'dta_ranks2' not found
+"

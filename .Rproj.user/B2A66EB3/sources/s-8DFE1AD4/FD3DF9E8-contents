@@ -1,0 +1,387 @@
+---
+title: "NHL ranking for the the 2018-19 season"
+author: "Sébastien Pouliot"
+date: \today
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+  word_document: default
+fontsize: 12pt
+geometry: margin=1in
+documentclass: article
+urlcolor: blue
+---
+
+```{r "setup", include=FALSE}
+knitr::opts_chunk$set(include = TRUE, echo = TRUE, results='asis', message = FALSE, warning = FALSE, fig.pos = 'h')
+
+rm(list = ls())
+
+library(pacman)
+pacman::p_load(tidyverse)
+pacman::p_load(stringr)
+pacman::p_load(boot)
+pacman::p_load(matrixStats)
+pacman::p_load(snow)
+pacman::p_load(Rlab)
+pacman::p_load(gtable)
+pacman::p_load(ggplot2)
+pacman::p_load(gridExtra)
+pacman::p_load(lubridate)
+pacman::p_load(XML)
+pacman::p_load(rvest)
+pacman::p_load(boot)
+pacman::p_load(openxlsx)
+pacman::p_load(kableExtra)
+pacman::p_load(stargazer)
+pacman::p_load(data.table)
+
+set.seed(123457)
+
+#Number of loops and number of cores
+n.rep <- 1000 #for simulating season
+n.sim <- 82 * 250
+
+# Function to wrap text
+
+wrapper <- function(x, ...) 
+{
+  paste(strwrap(x, ...), collapse = "\n")
+}
+
+
+
+```
+
+## Read data and run regressions
+
+* Read the data from [https://www.hockey-reference.com/](https://www.hockey-reference.com/) and organise them for the estimation of the models and for the simulation of the rest of the season.
+* Estimate models for goals for and against and for the outcome of games that go into overtime. 
+* Calculate number of points accumulated thus farm in the season.
+
+
+```{r}
+
+##############################################
+######### Read and prepare the data ##########
+##############################################
+
+source("Data.R")
+
+###################################################################
+######### Estimate models for the home and visitor teams ##########
+###################################################################
+
+eq.reg <- glm(goals ~ -1 + home + visitor, data = dta, weights = dta$weight, maxit = 250, family = "poisson")
+#summary(eq.reg)
+
+##############################################
+######## The game goes into overtime #########
+##############################################
+
+reg_ot <- glm(OT_home_win ~ -1 + h.team + v.team, data = dta[dta$team == "home" & dta$OT == 1,], family=binomial(link=logit), weights = dta$weight[dta$team == "home" & dta$OT == 1])
+#summary(reg_ot)
+
+###########################################
+### Calculate points accumulated so far ###
+###########################################
+
+dta_h <- dta %>% 
+  dplyr::select(date, hg = goals, OT_home_win, h.team, v.team, team) %>%
+  dplyr::filter(team == "home")  %>%
+  dplyr::select(-team)
+  
+dta_v <- dta %>% 
+  dplyr::select(date, vg = goals, OT_home_win, h.team, v.team, team) %>%
+  dplyr::filter(team == "visitor") %>%
+  dplyr::select(-team)
+  
+dta_p <- left_join(dta_h, dta_v) %>% 
+  mutate(point_h = case_when(hg > vg ~ 2,
+                             hg < vg  ~ 0,
+                             hg == vg & OT_home_win==1 ~ 2,
+                             hg == vg & OT_home_win==0 ~ 1),
+         point_v = case_when(vg > hg ~ 2,
+                             vg < hg ~ 0,
+                             vg == hg & OT_home_win==1 ~ 1,
+                             vg == hg & OT_home_win==0 ~ 2)) %>%
+  dplyr::select(h.team, v.team, point_h, point_v) 
+
+dta_v <- dta_p %>%
+  dplyr::select(v.team, point_v) %>%
+  rename(team = v.team, points = point_v)
+
+dta_h <- dta_p %>%
+  dplyr::select(h.team, point_h) %>%
+  rename(team = h.team, points = point_h)
+
+dta_p_total <- rbind(dta_v, dta_h) %>%
+  group_by(team) %>%
+  summarize(points = sum(points))
+
+rm(dta_h, dta_v)
+
+```
+
+## Simulate the rest of the season
+
+* Simulate the rest of the season using the outcome of the regressions. The season is simulated `r n.rep` times.
+
+
+```{r}
+
+source("Funcs.R")
+
+###################################
+### Simulate season n.rep times ###
+###################################
+
+dta_r <- purrr::map(seq_len(n.rep), ~dta0) %>% 
+  map(sim_season) %>%
+  bind_rows() %>% 
+  group_by(team) %>%
+  summarize(points = mean(points),
+            playoffs = 100*round(mean(playoffs),3),
+            East = 100*round(mean(East),3),
+            West = 100*round(mean(West),3),
+            President = 100*round(mean(President),3),
+            second = 100*round(mean(second),3),
+            third = 100*round(mean(third),3),
+            final = 100*round(mean(final),3),
+            champion = 100*round(mean(champion),3)) %>%
+  arrange(-points)
+
+```
+
+### Check correlation between goals for and against
+
+* Check whether the model captures the correlation between gor for and goal againts using plots and regressions.
+
+```{r}
+
+# Oberved goals
+
+dta_h <- dta %>% 
+  dplyr::select(date, hg = goals, h.team, v.team)
+  
+dta_v <- dta %>% 
+  dplyr::select(date, vg = goals, h.team, v.team) 
+  
+dta_obs <- left_join(dta_h, dta_v)
+
+ggplot(dta_obs, aes(y = hg, x = vg)) +
+  geom_point() +
+  geom_smooth(method=lm) +
+  ylab("Home goals") +
+  xlab("Visitor goals") +
+  labs(title = "Observed goals for and goals against") +
+  theme_bw() + 
+  theme(strip.background = element_blank())
+
+reg1 <- lm(hg ~ vg, data = dta_obs)
+
+# Simulated goals
+dta0$goals <- rpois(n = nrow(dta0), lambda = predict(eq.reg, newdata = dta0, type = "response"))
+
+dta0_h <- dta0 %>% 
+  dplyr::select(date, hg = goals, h.team, v.team)
+  
+dta0_v <- dta0 %>% 
+  dplyr::select(date, vg = goals, h.team, v.team) 
+  
+dta0_obs <- left_join(dta0_h, dta0_v)
+
+ggplot(dta0_obs, aes(y = hg, x = vg)) +
+  geom_point() +
+  geom_smooth(method=lm) +
+  ylab("Home goals") +
+  xlab("Visitor goals") +
+  labs(title = "Simulated goals for and goals against") +
+  theme_bw() + 
+  theme(strip.background =element_blank())
+
+reg2 <- lm(hg ~ vg, data = dta0_obs)
+
+stargazer(reg1, reg2, type = "html", title = "Comparison of correlation between goals for and goals against", column.labels = c("Observed", "Predicted"))
+
+rm(dta_h, dta_ob, dta_p, dta_p_total, dta_v, dta0_h, dta0_obs, dta0_v, reg1, reg2)
+
+```
+
+## Power ranking
+
+* Rank teams based on simulated 82 games season. Assumes that a team plays a balanced season `r 2*n.sim/2` times. My laptop runs out of memory when simulating the season more times. This part of code could be optimized.
+
+
+```{r ranking}
+
+##################
+### Rank teams ###
+##################
+
+dta_ranks <- teams %>%
+  map(function(x) rank_func(dta.sim, x)) %>%
+  bind_rows() %>%
+  arrange(-points) %>%
+    mutate(rank = 1:length(teams),
+           diff = round(Team_goals - Opp_goals, 2),
+           Ratio = round(Team_goals/Opp_goals, 2)) %>%
+    dplyr::select(rank, team, points, Team_goals, Opp_goals, diff, Ratio) %>%
+  rename(Rank = rank,
+         Team = team,
+         `Exp PTS` = points,
+         `Exp GF` = Team_goals,
+         `Exp GA` = Opp_goals,
+         DIFF = diff)
+
+```
+
+### Strength of schedule
+
+* The code below calculates the strength of schedule of the games already played and the games that remained to be played. This part of the code is commented out now because it is not used.
+* The code currently only prepares the data for display.
+
+
+```{r}
+
+################################
+### Add strength of schedule ###
+################################
+
+# dta_past <- lapply(dta_r$team, strength_func, data = dta) %>%
+#   bind_rows %>%
+#   rename(past_strength = strength)
+# 
+# dta_fut <- lapply(dta_r$team, strength_func, data = dta0) %>%
+#   bind_rows %>%
+#   rename(future_strength = strength)
+# 
+# dta_r <- dta_r %>%
+#   left_join(dta_past) %>%
+#   left_join(dta_fut) %>%
+#   mutate(conference = East + West) %>%
+#   dplyr::select(team, points, past_strength, future_strength, playoffs, conference, President, final, champion)
+#   
+# dta_r
+# 
+# rm(dta_past, dta_fut)
+
+dta_r <- dta_r %>%
+  mutate(Conf = East + West,
+         points = round(points, 2),
+         Rank = 1:31) %>%
+  rename(Team = team,
+         `Exp points` = points,
+         Playoffs = playoffs,
+         Pres = President,
+         Qrt = second,
+         Semi = third,
+         Finals = final,
+         Cup = champion) %>%
+  dplyr::select(Rank, Team, `Exp points`, Conf, Pres, Playoffs, Qrt, Semi, Finals, Cup)
+
+
+```
+
+## Save the data 
+
+* Save the outcome as `.RData`.
+* Save the outcome as `.xlsx`.
+* Prepare and save figures of the predictions and the power ranking.
+
+```{r saving}
+
+#################
+### Save data ###
+#################
+
+save(dta_ranks, dta_r, file = paste("Data/ranking_", today(), ".RData"))
+#load(paste("Data/ranking_", today(), ".RData"))
+
+source("Figures/Graph parameters.R")
+
+wb <- createWorkbook()
+addWorksheet(wb = wb, sheetName = "Prediction", gridLines = TRUE)
+writeDataTable(wb = wb, sheet = "Prediction", x = dta_r)
+addWorksheet(wb = wb, sheetName = "Ranking", gridLines = TRUE)
+writeDataTable(wb = wb, sheet = "Ranking", x = dta_ranks)
+saveWorkbook(wb, paste("Data/ranking_", today(), ".xlsx"), overwrite = TRUE)
+
+####################################
+### Table for standings forecast ###
+####################################
+
+tab_r <- kable(dta_r, "html", caption = 'Projected standings for the NHL 2018-19 season') %>%
+  kable_styling(c("striped", "hover", "condensed", "responsive"), full_width = F) %>%
+  footnote(general = "Exp points is a team expected number of points calculated as the sum of the points it has accumulated thus far in the season and the number of points it is expected to gain for the rest of the season. The other columns are the probabilities that a team wins its conference, wins the President trophy, makes the playoffs, reaches the quarters, semis, and finals and wins de Stanley Cup.")
+
+tab_r
+
+dta_r2 <- dta_r %>%
+  mutate(Team = paste(Rank, Team, sep = ") ")) %>%
+  gather(var, value, -Rank:-Team) %>%
+  mutate(var_rank = case_when(var == "Exp points" ~ 1,
+                              var == "Conf" ~ 2,
+                              var == "Pres" ~ 3,
+                              var == "Playoffs" ~ 4,
+                              var == "Qrt" ~ 5,
+                              var == "Semi" ~ 6,
+                              var == "Finals" ~ 7,
+                              var == "Cup" ~ 8),
+         value = sprintf("%.1f", round(value,1)))
+
+pred_plot <- ggplot(dta_r2, aes(reorder(var, var_rank), reorder(Team,desc(Rank)))) + 
+  geom_tile(color="white", alpha = 0, size=2, stat="identity", height=2, width=2.5) + 
+  geom_text(data=dta_r2, aes(var, Team, label = value), size=rel(3)) +
+  scale_x_discrete(position="top") + scale_y_discrete(expand = c(0, 0)) +
+  mytheme +
+    labs(title = 'Projected standings for the NHL 2018-19 season',
+         subtitle = paste("Calculated on ", paste(lubridate::month(today(), label = TRUE, abbr = FALSE), day(today()), sep = " "), ", ", year(today()), " by Sébastien Pouliot - Twitter: @PouliotSeb", sep = " "),
+         x = 'This axis title intentionally left blank',
+         y = 'This axis title intentionally left blank',
+         caption = wrapper("Note: Exp points is a team expected number of points calculated as the sum of the points it has accumulated thus far in the season and the number of points it is expected to gain for the rest of the season. The other columns are the probabilities that a team wins its conference, wins the President trophy, makes the playoffs, reaches the quarters, semis, and finals and wins de Stanley Cup.", width = 140))
+
+ggsave(paste("Figures/projection_", today(), ".png"), pred_plot, dpi = 600)
+
+###############################
+### Table for power ranking ###
+###############################
+
+tab_rank <- kable(dta_ranks, "html", caption = 'Power ranking for the NHL 2018-19 season') %>%
+  kable_styling(c("striped", "hover", "condensed", "responsive"), full_width = F) %>%
+  footnote(general = "Exp points is a team expected number of points in a simulated season where it plays every teams, including itself, at home and away, thus ranking teams assuming they all play the same 82 games season. The other columns are the expected number of goals for (Exp GF), the expected number of goals against (Exp GA), the difference in expected goals (Diff), and the ratio of the expected goals (Ratio).") 
+
+tab_rank
+
+dta_ranks2 <- dta_ranks %>%
+  mutate(Team = paste(Rank, Team, sep = ") ")) %>%
+  rename(`Exp points` = `Exp PTS`,
+         Diff = DIFF) %>%
+  gather(var, value, -Rank:-Team) %>%
+  mutate(var_rank = case_when(var == "Exp points" ~ 1,
+                              var == "Exp GF" ~ 2,
+                              var == "Exp GA" ~ 3,
+                              var == "Diff" ~ 4,
+                              var == "Ratio" ~ 5),
+         value = sprintf("%.2f", round(value,2)))
+
+pred_plot <- ggplot(dta_ranks2, aes(reorder(var, var_rank), reorder(Team,desc(Rank)))) + 
+  geom_tile(color="white", alpha = 0, size=2, stat="identity", height=2, width=2.5) + 
+  geom_text(data=dta_ranks2, aes(var, Team, label = value), size=rel(3)) +
+  scale_x_discrete(position="top") + scale_y_discrete(expand = c(0, 0)) +
+  mytheme +
+    labs(title = 'Power ranking for the NHL 2018-19 season',
+         subtitle = paste("Calculated on ", paste(lubridate::month(today(), label = TRUE, abbr = FALSE), day(today()), sep = " "), ", ", year(today()), " by Sébastien Pouliot - Twitter: @PouliotSeb", sep = " "),
+         x = 'This axis title intentionally left blank',
+         y = 'This axis title intentionally left blank',
+         caption = wrapper("Note: Exp points is a team expected number of points in a simulated season where it plays every teams, including itself, at home and away, thus ranking teams assuming they all play the same 82 games season. The other columns are the expected number of goals for (Exp GF), the expected number of goals against (Exp GA), the difference in expected goals (Diff), and the ratio of the expected goals (Ratio).", width = 140))
+
+ggsave(paste("Figures/power_ranking_", today(), ".png"), pred_plot, dpi = 600)
+
+
+```
+
+

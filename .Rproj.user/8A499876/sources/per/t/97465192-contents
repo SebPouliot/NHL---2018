@@ -1,0 +1,57 @@
+#Read the data
+games <- read_html("https://www.hockey-reference.com/leagues/NHL_2018_games.html#games::none")
+
+dta <- html_table(html_nodes(games, "table")[[1]])
+colnames(dta) <- c("date", "visitor", "vg", "home", "hg", "ot", "attendance", "log", "notes")
+dta <- dta  %>% 
+  tbl_df %>%
+  mutate(vg = as.numeric(vg),
+         hg = as.numeric(hg))
+
+#Regular time scores
+dta <- dta %>% mutate(date = as.Date(date),
+               home_win = as.numeric(hg>vg),
+               r_vg = ifelse(vg>hg & ot == "OT", vg-1, vg),
+               r_vg = ifelse(vg>hg & ot == "SO", vg-1, vg),
+               r_hg = ifelse(hg>vg & ot == "OT", hg-1, hg),
+               r_hg = ifelse(hg>vg & ot == "SO", hg-1, hg),
+               ot_vg = ifelse(vg>hg & ot == "OT", 1, 0),
+               ot_vg = ifelse(vg>hg & ot == "SO", 1, ot_vg),
+               ot_hg = ifelse(hg>vg & ot == "OT", 1, 0),
+               ot_hg = ifelse(hg>vg & ot == "SO", 1, ot_hg),
+               OT = as.numeric(ot=="OT"|ot=="SO"),
+               OT_home_win = as.numeric(OT == 1 & hg > vg),
+               visitor = word(visitor,-1),
+               visitor = case_when(visitor == "Leafs" ~ "Maple Leafs",
+                                   visitor == "Wings" ~ "Red Wings", 
+                                   TRUE ~ visitor),
+               home = word(home,-1),
+               home = case_when(home == "Leafs" ~ "Maple Leafs", 
+                                home == "Wings" ~ "Red Wings",
+                                TRUE ~ home))
+
+#Create dummy for each team as visitor
+for(t in unique(dta$visitor)[-1]) {
+  dta[,paste("v",t, sep=".")] <- ifelse(dta$visitor==t,1,0)
+}
+rm(t)
+
+#visitor.l <- paste("v",unique(dta$visitor),sep=".")
+
+#Create dummy for each team at home
+for(t in unique(dta$home)[-2]) {
+  dta[,paste("h",t, sep=".")] <- ifelse(dta$home==t,1,0)
+}
+rm(t)
+
+#home.l <- paste("h",unique(dta$home),sep=".")
+
+dta0 <- dta %>% 
+  dplyr::filter(is.na(hg)) %>%
+  mutate(weight = 0.05 + 0.95*(1-pbeta((as.numeric(max(date))-as.numeric(date))/(as.numeric(max(date))-as.numeric(min(date))), 5,5)))
+
+dta <- dta[!is.na(dta$hg),]
+
+last_game <- max(dta$date)
+
+#save(dta,file=paste(paste("data", last_game, sep="_"), ".RData", sep=""))
