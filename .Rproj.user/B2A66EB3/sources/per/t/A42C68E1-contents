@@ -330,11 +330,12 @@ sim_season <- function(data){
   
 }
 
-##################################
-### Function for team rankings ###
-##################################
+###################################
+### Functions for team rankings ###
+###################################
 
-rank_func <- function(data, team.sim){
+# Function for one season
+rank_func_season <- function(data, team.sim){
   
  #Prepare data
   
@@ -368,7 +369,7 @@ rank_func <- function(data, team.sim){
     dplyr::filter(team == "visitor") %>%
     dplyr::select(-team)
   
-  dta0_p <- cbind(dta_h, dta_v) %>% 
+  dta0_p <- bind_cols(dta_h, dta_v) %>% 
     mutate(point_h = case_when(hg > vg ~ 2,
                                hg < vg  ~ 0,
                                hg == vg & OT_home_win==1 ~ 2,
@@ -391,6 +392,16 @@ rank_func <- function(data, team.sim){
               Opp_goals = round(mean(opponent_goal, na.rm = TRUE), 2)) 
   
   return(dta_sum)
+}
+
+# Function to simulate seasons for one team
+rank_func <- function(data, team.sim){
+
+    purrr::map(seq_len(n.sim), ~dta.sim) %>% 
+    purrr::map(function(x) rank_func_season(x, team.sim)) %>%
+    bind_rows() %>%
+    summarise_all(mean) %>%
+    mutate(team = team.sim)
 }
 
 ##################################################

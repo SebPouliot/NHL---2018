@@ -42,8 +42,8 @@ pacman::p_load(data.table)
 set.seed(123457)
 
 #Number of loops and number of cores
-n.rep <- 1000 #for simulating season
-n.sim <- 82 * 250
+n.rep <- 2500 #for simulating season
+n.sim <- 2500 #for simulations for ranking
 
 # Function to wrap text
 
@@ -131,7 +131,7 @@ rm(dta_h, dta_v)
 * Simulate the rest of the season using the outcome of the regressions. The season is simulated `r n.rep` times.
 
 
-```{r}
+```{r standings}
 
 source("Funcs.R")
 
@@ -140,7 +140,7 @@ source("Funcs.R")
 ###################################
 
 dta_r <- purrr::map(seq_len(n.rep), ~dta0) %>% 
-  map(sim_season) %>%
+  purrr::map(sim_season) %>%
   bind_rows() %>% 
   group_by(team) %>%
   summarize(points = mean(points),
@@ -160,7 +160,7 @@ dta_r <- purrr::map(seq_len(n.rep), ~dta0) %>%
 
 * Check whether the model captures the correlation between gor for and goal againts using plots and regressions.
 
-```{r}
+```{r corr}
 
 # Oberved goals
 
@@ -192,9 +192,9 @@ dta0_h <- dta0 %>%
 dta0_v <- dta0 %>% 
   dplyr::select(date, vg = goals, h.team, v.team) 
   
-dta0_obs <- left_join(dta0_h, dta0_v)
+dta0_sim <- left_join(dta0_h, dta0_v)
 
-ggplot(dta0_obs, aes(y = hg, x = vg)) +
+ggplot(dta0_sim, aes(y = hg, x = vg)) +
   geom_point() +
   geom_smooth(method=lm) +
   ylab("Home goals") +
@@ -203,27 +203,26 @@ ggplot(dta0_obs, aes(y = hg, x = vg)) +
   theme_bw() + 
   theme(strip.background =element_blank())
 
-reg2 <- lm(hg ~ vg, data = dta0_obs)
+reg2 <- lm(hg ~ vg, data = dta0_sim)
 
 stargazer(reg1, reg2, type = "html", title = "Comparison of correlation between goals for and goals against", column.labels = c("Observed", "Predicted"))
 
-rm(dta_h, dta_ob, dta_p, dta_p_total, dta_v, dta0_h, dta0_obs, dta0_v, reg1, reg2)
+rm(dta_h, dta_ob, dta_p, dta_p_total, dta_v, dta0_h, dta0_obs, dta0_sim, dta0_v, reg1, reg2)
 
 ```
 
 ## Power ranking
 
-* Rank teams based on simulated 82 games season. Assumes that a team plays a balanced season `r 2*n.sim/2` times. My laptop runs out of memory when simulating the season more times. This part of code could be optimized.
+* Rank teams based on simulated 82 games season. Assumes that a team plays a balanced season `r 2*n.sim/82` times. My laptop runs out of memory when simulating the season more times. This part of code could be optimized.
 
-
-```{r ranking}
+```{r power}
 
 ##################
 ### Rank teams ###
 ##################
 
 dta_ranks <- teams %>%
-  map(function(x) rank_func(dta.sim, x)) %>%
+  purrr::map(function(x) rank_func(dta.sim, x)) %>%
   bind_rows() %>%
   arrange(-points) %>%
     mutate(rank = 1:length(teams),

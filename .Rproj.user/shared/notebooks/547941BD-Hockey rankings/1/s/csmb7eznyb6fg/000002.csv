@@ -1,4 +1,4 @@
-"0","knitr::opts_chunk$set(fig.pos = 'h')"
+"0","knitr::opts_chunk$set(include = TRUE, echo = TRUE, results='asis', message = FALSE, warning = FALSE, fig.pos = 'h')"
 "0","rm(list = ls())"
 "0","library(pacman)"
 "0","pacman::p_load(tidyverse)"
@@ -15,7 +15,6 @@
 "0","pacman::p_load(rvest)"
 "0","pacman::p_load(boot)"
 "0","pacman::p_load(openxlsx)"
-"0","pacman::p_load(kableExtra)"
 "0","pacman::p_load(stargazer)"
 "0","pacman::p_load(data.table)"
 "0","set.seed(123457)"

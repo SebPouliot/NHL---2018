@@ -66,7 +66,7 @@ dta.v <- dta %>%
 
 # Stack data
 
-dta <- rbind(dta.h, dta.v)
+dta <- bind_rows(dta.h, dta.v)
 
 rm(dta.v, dta.h, games)
 
@@ -84,7 +84,7 @@ last_game <- max(dta$date)
 ### Create data frame for team rankings ###
 ###########################################
 
-dta.h1 <- data.frame(visitor = rep(unique(dta0$v.team), n.sim)) %>%
+dta.h1 <- data.frame(visitor = unique(dta0$v.team)) %>%
   mutate(home = "NA",
          h.team = home,
          v.team = visitor,
@@ -92,7 +92,7 @@ dta.h1 <- data.frame(visitor = rep(unique(dta0$v.team), n.sim)) %>%
          team = "home",
          team.home = TRUE,
          team.away = FALSE)
-dta.h2 <- data.frame(visitor = rep(unique(dta0$v.team), n.sim)) %>%
+dta.h2 <- data.frame(visitor = unique(dta0$v.team)) %>%
   mutate(home = "NA",
          h.team = home,
          v.team = visitor,
@@ -101,7 +101,7 @@ dta.h2 <- data.frame(visitor = rep(unique(dta0$v.team), n.sim)) %>%
          team.home = TRUE,
          team.away = FALSE)
 
-dta.v1 <-  data.frame(home = rep(unique(dta0$h.team), n.sim)) %>%
+dta.v1 <-  data.frame(home = unique(dta0$h.team)) %>%
   mutate(visitor = "NA",
          h.team = home,
          v.team = visitor,
@@ -109,7 +109,7 @@ dta.v1 <-  data.frame(home = rep(unique(dta0$h.team), n.sim)) %>%
          team = "home",
          team.home = FALSE,
          team.away = TRUE)
-dta.v2 <-  data.frame(home = rep(unique(dta0$h.team), n.sim)) %>%
+dta.v2 <-  data.frame(home = unique(dta0$h.team)) %>%
   mutate(visitor = "NA",
          h.team = home,
          v.team = visitor,
